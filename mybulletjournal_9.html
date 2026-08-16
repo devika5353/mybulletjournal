@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MyBulletJournal</title>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #faf9f4;
+    --dot: #d8d5c8;
+    --ink: #2b2b3d;
+    --muted: #7a7a8c;
+    --line: #e4e2d8;
+    --pen: #4c6fff;
+    --done: #3fae6a;
+    --cancel: #e2564f;
+    --migrate: #e6a23c;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+    background-size: 18px 18px;
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 100vh;
+  }
+
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- SIDEBAR / CALENDAR ---------- */
+  aside {
+    background: rgba(255,255,255,0.6);
+    border-right: 1px solid var(--line);
+    padding: 24px 18px;
+  }
+
+  aside h1 {
+    font-family: "Kalam", cursive;
+    font-size: 28px;
+    margin: 0 0 4px;
+  }
+
+  aside .tagline {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 24px;
+  }
+
+  .cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .cal-nav button {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--pen);
+    padding: 4px 8px;
+  }
+
+  .cal-nav span {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+    text-align: center;
+  }
+
+  .cal-grid .dow {
+    font-size: 10px;
+    color: var(--muted);
+    padding-bottom: 4px;
+  }
+
+  .cal-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    position: relative;
+    color: var(--ink);
+  }
+
+  .cal-day:hover { background: rgba(76,111,255,0.12); }
+
+  .cal-day.empty { cursor: default; }
+  .cal-day.empty:hover { background: none; }
+
+  .cal-day.has-tasks::after {
+    content: "";
+    position: absolute;
+    bottom: 3px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--pen);
+  }
+
+  .cal-day.complete {
+    background: rgba(63,174,106,0.18);
+  }
+
+  .cal-day.complete::after { background: var(--done); }
+
+  .cal-day.incomplete {
+    background: rgba(226,86,79,0.14);
+  }
+
+  .cal-day.incomplete::after { background: var(--cancel); }
+
+  .cal-day.today {
+    border: 1.5px solid var(--pen);
+    font-weight: 700;
+  }
+
+  /* ---------- MAIN AREA ---------- */
+  main {
+    padding: 28px 32px;
+    max-width: 700px;
+  }
+
+  .day-card {
+    background: rgba(255,255,255,0.75);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+
+  .day-card .head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .big-box {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: 2px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .big-box.complete {
+    background: var(--done);
+    border-color: var(--done);
+    color: white;
+  }
+
+  .day-card .head .date-label {
+    font-family: "Kalam", cursive;
+    font-size: 18px;
+  }
+
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+  }
+
+  .small-box {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1.5px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    cursor: pointer;
+    flex-shrink: 0;
+    background: white;
+    user-select: none;
+  }
+
+  .small-box.done { background: var(--done); border-color: var(--done); color: white; }
+  .small-box.cancelled { background: var(--cancel); border-color: var(--cancel); color: white; }
+  .small-box.migrated { background: var(--migrate); border-color: var(--migrate); color: white; }
+  .small-box.note { background: white; border-color: var(--muted); color: var(--muted); font-size: 20px; font-weight: 700; }
+
+  .task-text { font-size: 14px; flex: 1; }
+  .task-text.done, .task-text.cancelled { color: var(--muted); text-decoration: line-through; }
+
+  .del-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0;
+  }
+  .task-row:hover .del-btn { opacity: 1; }
+
+  .carry-box {
+    background: rgba(230,162,60,0.10);
+    border: 1px dashed var(--migrate);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 10px 0;
+  }
+
+  .carry-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--migrate);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .carry-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+
+  .carry-text { flex: 1; }
+
+  .carry-date {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .carry-add {
+    background: var(--migrate);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .add-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .add-row input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .add-row button {
+    background: var(--pen);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .empty-state {
+    color: var(--muted);
+    font-size: 14px;
+    padding: 40px 0;
+    text-align: center;
+  }
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(43,43,61,0.4);
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--paper);
+    background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+    background-size: 18px 18px;
+    border-radius: 12px;
+    padding: 20px;
+    width: 90%;
+    max-width: 420px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+
+  .modal-close {
+    float: right;
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <aside>
+    <h1>MyBulletJournal</h1>
+    <p class="tagline">One page at a time.</p>
+
+    <div class="cal-nav">
+      <button onclick="changeMonth(-1)">&#8249;</button>
+      <span id="cal-label"></span>
+      <button onclick="changeMonth(1)">&#8250;</button>
+    </div>
+
+    <div class="cal-grid" id="cal-grid"></div>
+  </aside>
+
+  <main>
+    <div id="day-list"></div>
+  </main>
+
+</div>
+
+<script>
+  const API_BASE = "https://mybulletjournal.onrender.com";
+
+  const STATUS_SYMBOL = { open: "", done: "&#10003;", cancelled: "&#10005;", migrated: "&gt;", note: "&middot;" };
+  const STATUS_CLASS = { open: "", done: "done", cancelled: "cancelled", migrated: "migrated", note: "note" };
+
+  let allDays = [];           // cache of everything from the API
+  let calendarCursor = new Date();  // which month the calendar is showing
+  let draftDates = new Set(); // dates clicked on the calendar that have no tasks yet,
+                               // kept client-side just so an empty card appears to type into
+
+  // ---------- DATA LOADING ----------
+
+  async function loadDays() {
+    const res = await fetch(`${API_BASE}/days`);
+    allDays = await res.json();
+    renderCalendar();
+    renderMainList();
+  }
+
+  function findDay(dateStr) {
+    return allDays.find(d => d.date === dateStr) || { date: dateStr, complete: false, tasks: [] };
+  }
+
+  // ---------- DATE HELPERS ----------
+
+  function toDateStr(d) {
+    // local YYYY-MM-DD, avoiding timezone shift issues with toISOString()
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function prettyDate(dateStr) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  }
+
+  function shortDate(dateStr) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  // ---------- CALENDAR ----------
+
+  function changeMonth(delta) {
+    calendarCursor.setMonth(calendarCursor.getMonth() + delta);
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    const year = calendarCursor.getFullYear();
+    const month = calendarCursor.getMonth();
+
+    document.getElementById("cal-label").textContent =
+      calendarCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+    const grid = document.getElementById("cal-grid");
+    const dows = ["S", "M", "T", "W", "T", "F", "S"];
+    let html = dows.map(d => `<div class="dow">${d}</div>`).join("");
+
+    const firstOfMonth = new Date(year, month, 1);
+    const startOffset = firstOfMonth.getDay(); // 0 = Sunday
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayStr = toDateStr(new Date());
+
+    for (let i = 0; i < startOffset; i++) {
+      html += `<div class="cal-day empty"></div>`;
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = toDateStr(new Date(year, month, day));
+      const dayData = allDays.find(d => d.date === dateStr);
+      const hasTasks = dayData && dayData.tasks.length > 0;
+      const complete = dayData && dayData.complete;
+
+      let classes = "cal-day";
+      if (hasTasks) classes += " has-tasks";
+      if (complete) classes += " complete";
+      else if (hasTasks) classes += " incomplete";
+      if (dateStr === todayStr) classes += " today";
+
+      html += `<div class="${classes}" onclick="selectDate('${dateStr}')">${day}</div>`;
+    }
+
+    grid.innerHTML = html;
+  }
+
+  // ---------- MAIN LIST (agenda of days that have tasks) ----------
+
+  function renderMainList() {
+    const container = document.getElementById("day-list");
+
+    // Combine real days (from the backend) with draft dates (clicked on the
+    // calendar but not saved yet), de-duplicated, newest first.
+    const realDates = new Set(allDays.map(d => d.date));
+    const draftOnly = [...draftDates].filter(d => !realDates.has(d));
+    const allDatesToShow = [...allDays.map(d => d.date), ...draftOnly]
+      .sort((a, b) => b.localeCompare(a));
+
+    if (allDatesToShow.length === 0) {
+      container.innerHTML = `<div class="empty-state">No entries yet — click a date on the calendar to start your first page.</div>`;
+      return;
+    }
+
+    container.innerHTML = allDatesToShow.map(dateStr => dayCardHtml(findDay(dateStr))).join("");
+  }
+
+  function dayCardHtml(day) {
+    return `
+      <div class="day-card" id="day-card-${day.date}">
+        <div class="head">
+          <div class="big-box ${day.complete ? "complete" : ""}">${day.complete ? "&#10003;" : ""}</div>
+          <div class="date-label">${prettyDate(day.date)}</div>
+        </div>
+        ${day.tasks.map(t => taskRowHtml(t)).join("")}
+        ${carryOverHtml(day.date)}
+        <div class="add-row">
+          <input type="text" placeholder="Add a task…" id="input-${day.date}"
+                 onkeydown="if(event.key==='Enter') addTask('${day.date}')">
+          <button onclick="addTask('${day.date}')">Add</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function carryOverHtml(dateStr) {
+    // Tasks marked ">" (migrated) on an earlier day, not yet pulled into a
+    // later day. These are candidates to bring into the day being viewed.
+    const candidates = allDays
+      .flatMap(d => d.tasks.map(t => ({ ...t, sourceDate: d.date })))
+      .filter(t => t.status === "migrated" && !t.carried && t.sourceDate < dateStr);
+
+    if (candidates.length === 0) return "";
+
+    return `
+      <div class="carry-box">
+        ${candidates.map(t => `
+          <div class="carry-row">
+            <span class="carry-text">${escapeHtml(t.text)}</span>
+            <span class="carry-date">from ${shortDate(t.sourceDate)}</span>
+            <button class="carry-add" onclick="pullForward(${t.id}, '${escapeHtml(t.text)}', '${dateStr}')">+ Add</button>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function taskRowHtml(t) {
+    return `
+      <div class="task-row">
+        <div class="small-box ${STATUS_CLASS[t.status]}" onclick="cycleTask(${t.id})">${STATUS_SYMBOL[t.status]}</div>
+        <div class="task-text ${STATUS_CLASS[t.status]}">${escapeHtml(t.text)}</div>
+        <button class="del-btn" onclick="deleteTask(${t.id})">remove</button>
+      </div>
+    `;
+  }
+
+  // ---------- SELECTING A DATE FROM THE CALENDAR ----------
+  // Clicking a date no longer opens a popup — it just makes sure that
+  // day's card exists in the main list, scrolls to it, and puts your
+  // cursor straight in the "add a task" box.
+
+  function selectDate(dateStr) {
+    const alreadyShown = allDays.some(d => d.date === dateStr) || draftDates.has(dateStr);
+    if (!alreadyShown) {
+      draftDates.add(dateStr);
+      renderMainList();
+    }
+
+    const card = document.getElementById(`day-card-${dateStr}`);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    const input = document.getElementById(`input-${dateStr}`);
+    if (input) input.focus();
+  }
+
+  // ---------- ACTIONS ----------
+
+  async function addTask(dateStr) {
+    const input = document.getElementById(`input-${dateStr}`);
+    const text = input.value.trim();
+    if (!text) return;
+
+    await fetch(`${API_BASE}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: dateStr, text }),
+    });
+
+    input.value = "";
+    draftDates.delete(dateStr); // it's a real saved day now, no longer just a draft
+    await loadDays();
+
+    // keep focus in the box so you can keep typing tasks for the same day
+    const refreshedInput = document.getElementById(`input-${dateStr}`);
+    if (refreshedInput) refreshedInput.focus();
+  }
+
+  async function pullForward(originalTaskId, text, targetDate) {
+    // Create the task fresh on the day you're viewing...
+    await fetch(`${API_BASE}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: targetDate, text }),
+    });
+    // ...then mark the original as carried so it stops showing up as a candidate.
+    await fetch(`${API_BASE}/tasks/${originalTaskId}/mark-carried`, { method: "PATCH" });
+    await loadDays();
+  }
+
+  async function cycleTask(taskId) {
+    await fetch(`${API_BASE}/tasks/${taskId}/cycle`, { method: "PATCH" });
+    await loadDays();
+  }
+
+  async function deleteTask(taskId) {
+    await fetch(`${API_BASE}/tasks/${taskId}`, { method: "DELETE" });
+    await loadDays();
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  loadDays();
+</script>
+
+</body>
+</html>
